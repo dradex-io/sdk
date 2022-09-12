@@ -1,0 +1,11 @@
+.anchor
+.DS_Store
+node_modules
+vault
+dist
+.yarn/install-state.gz
+.yarn/cache
+.vscode
+**.local
+**.temp
+**/*.tsbuildinfo
