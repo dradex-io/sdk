@@ -5,13 +5,13 @@ import {
   SystemProgram,
   AccountInfo,
   AccountMeta,
-  Transaction,
+  TransactionInstruction,
 } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 import { Address, Program, Provider, translateAddress } from "@project-serum/anchor";
 import { Dex, DexIDL, dexIdl, loggerIdl } from "@dradex/idl";
 import { DexMarket } from "./market";
-import { OrderInput } from "./core";
+import { InstructionSet, OrderInput } from "./core";
 
 export interface DexMetadata {
   address: Address;
@@ -27,7 +27,7 @@ export interface MarketOperationAccountsInput {
 
 export class DexProgram extends Program<Dex> {
   loggerProgramId: PublicKey;
-  systemAccounts!: {
+  systemAccounts: {
     signer: PublicKey;
     master: PublicKey;
     rent: PublicKey;
@@ -40,7 +40,13 @@ export class DexProgram extends Program<Dex> {
     master: number;
   };
 
-  constructor(options: { provider?: Provider; loggerProgramId?: Address; dexMetadata?: DexMetadata } = {}) {
+  constructor(
+    options: {
+      provider?: Provider;
+      loggerProgramId?: Address;
+      dexMetadata?: DexMetadata;
+    } = {},
+  ) {
     const dexMetadata = options.dexMetadata ?? (dexIdl.metadata as DexMetadata);
     super(DexIDL, dexMetadata.address, options.provider);
     this.loggerProgramId = translateAddress(options.loggerProgramId ?? loggerIdl.metadata.address);
@@ -65,6 +71,14 @@ export class DexProgram extends Program<Dex> {
 
   get connection() {
     return this.provider.connection;
+  }
+
+  get signer() {
+    return this.systemAccounts.signer;
+  }
+
+  createInstructionSet(instructions: TransactionInstruction[]) {
+    return new InstructionSet(instructions, this.provider);
   }
 
   async getMarket(address: PublicKey): Promise<DexMarket> {
@@ -97,19 +111,20 @@ export class DexProgram extends Program<Dex> {
   }
 
   async getMarketUserAddress(market: PublicKey, user?: PublicKey) {
-    return await this.getProgramAddress(
-      [Buffer.from("market_user_v2"), market.toBuffer()].concat(user ? [user.toBuffer()] : []),
-    );
+    return await this.getProgramAddress([Buffer.from("market_user_v2"), market.toBuffer(), (user ?? this.signer).toBuffer()]);
   }
 
-  async getDexUserAddress(user: PublicKey) {
-    return await this.getProgramAddress([Buffer.from("dex_user"), user.toBuffer()]);
+  async getDexUserAddress(user?: PublicKey) {
+    return await this.getProgramAddress([Buffer.from("dex_user"), (user ?? this.signer).toBuffer()]);
   }
 
   async createOrder(
     market: DexMarket,
     input: OrderInput,
-    options: { accounts?: MarketOperationAccountsInput; remainingAccounts?: AccountMeta[] } = {},
+    options: {
+      accounts?: MarketOperationAccountsInput;
+      remainingAccounts?: AccountMeta[];
+    } = {},
   ) {
     const signer = this.systemAccounts.signer;
     const accounts = {
@@ -120,11 +135,36 @@ export class DexProgram extends Program<Dex> {
       marketUser: options.accounts?.marketUser ?? (await this.getMarketUserAddress(market.address, signer)),
       dexUser: options.accounts?.dexUser ?? (await this.getDexUserAddress(signer)),
     };
-    return new Transaction().add(
+    return this.createInstructionSet([
       this.instruction.createOrder(input, {
         accounts,
         remainingAccounts: options.remainingAccounts || undefined,
       }),
-    );
+    ]);
+  }
+
+  async createDexUser(user?: PublicKey) {
+    return this.createInstructionSet([
+      this.instruction.createDexUser(null, {
+        accounts: {
+          ...this.systemAccounts,
+          signer: user ?? this.signer,
+          dexUser: await this.getDexUserAddress(user),
+        },
+      }),
+    ]);
+  }
+
+  async createMarketUser(market: DexMarket, user?: PublicKey) {
+    return this.createInstructionSet([
+      this.instruction.createMarketUser({
+        accounts: {
+          ...this.systemAccounts,
+          ...market.getAccounts(),
+          signer: user ?? this.signer,
+          marketUser: await this.getMarketUserAddress(market.address, user),
+        },
+      }),
+    ]);
   }
 }

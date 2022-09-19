@@ -1,7 +1,8 @@
 import { NATIVE_MINT } from "@solana/spl-token";
 import { Connection, PublicKey, AccountInfo } from "@solana/web3.js";
 import JSBI from "jsbi";
-import { DexMarket, SwapMode } from "@dradex/sdk";
+
+import { DexMarket, SwapMode } from "../src";
 
 const MARKET_ID = new PublicKey("CJept8TLyG9r2GMhttqR98zohVq274XCMiy5oxjTKKBt");
 const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
