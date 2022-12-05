@@ -58,6 +58,24 @@ async function main() {
         swapMode: SwapMode.ExactOut,
       }),
     ],
+    [
+      "BUY a very small amount of SOL",
+      market.getQuote({
+        amount: JSBI.BigInt(100),
+        sourceMint: USDC_MINT,
+        destinationMint: NATIVE_MINT,
+        swapMode: SwapMode.ExactIn,
+      }),
+    ],
+    [
+      "SELL a very small amount of SOL",
+      market.getQuote({
+        amount: JSBI.BigInt(100),
+        sourceMint: NATIVE_MINT,
+        destinationMint: USDC_MINT,
+        swapMode: SwapMode.ExactIn,
+      }),
+    ],
   ];
   quotes.forEach(([message, quote]) => {
     console.log(message, JSON.stringify(quote, undefined, 2), "\n");

@@ -267,6 +267,19 @@ export class QuoteCalculator {
     };
   }
 
+  checkMinimumAmounts(side: number, inAmount: JSBI, outAmount: JSBI) {
+    const lotSize = this.toProgramAmount(this.formatting.lotSize, this.tokens[0]);
+    return !side
+      ? {
+          outAmount: JSBI.greaterThanOrEqual(outAmount, lotSize) ? outAmount : JSBI.BigInt(0),
+          minOutAmount: lotSize,
+        }
+      : {
+          outAmount: JSBI.greaterThanOrEqual(inAmount, lotSize) ? outAmount : JSBI.BigInt(0),
+          minInAmount: lotSize,
+        };
+  }
+
   getQuote(params: QuoteParams): Quote {
     const side = params.destinationMint.equals(this.market.t0) ? Side.BID : Side.ASK;
     const inMode = params.swapMode == SwapMode.ExactIn;
@@ -288,9 +301,9 @@ export class QuoteCalculator {
       feeAmount,
       feePct,
       inAmount,
-      outAmount,
       notEnoughLiquidity: result.remaining > 0 && result.remainingTotal > 0,
       priceImpactPct: (Math.abs(basePrice - result.unitPrice) / result.unitPrice) * 100,
+      ...this.checkMinimumAmounts(side, inAmount, outAmount),
     };
   }
 }
